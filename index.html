@@ -134,6 +134,7 @@ nav button[aria-selected="true"]{color:var(--accent);border-top-color:var(--acce
 .trash.sure .conf{display:inline}
 .seg{display:flex;flex-direction:column;gap:6px}
 .seg label{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg)}
+.seg input{width:auto;flex:none}
 .seg label:has(input:checked){border-color:var(--accent);background:var(--soft)}
 .sync{font-size:.78rem;color:var(--muted);text-align:center}
 @media (prefers-reduced-motion:no-preference){ .answer{animation:in .25s ease-out} @keyframes in{from{transform:translateY(4px);opacity:.6}to{transform:none;opacity:1}} }
@@ -241,6 +242,7 @@ function materias(){
 }
 function nombre(m){return (S.nombres&&S.nombres[m])||""}
 function etiqueta(m){const n=nombre(m);return n?`${esc(n)} <span class="code">${esc(m)}</span>`:esc(m)}
+function esCodigo(m){return /^[A-Z]{2,5}[ -]?\d{3,}/.test(m)}
 function color(m){const i=materias().indexOf(m);return "var(--c"+((i<0?0:i)%8+1)+")"}
 
 /* ---------- consultas ---------- */
@@ -352,7 +354,7 @@ function vComp(){
   if(!mats.length)return h+`<div class="empty">Primero agrega tus clases en la pestaña Semana.</div>`+respaldoHTML();
   for(const m of mats){
     const lst=S.comps.filter(c=>c.materia===m).sort((a,b)=>(a.hecho-b.hecho)||a.fecha.localeCompare(b.fecha));
-    h+=`<div class="grp"><div class="grphead"><div class="t"><span class="dot" style="--sc:${color(m)}"></span>${nombre(m)?etiqueta(m):`<span class="code">${esc(m)}</span> <span style="font-weight:400;color:var(--muted)">sin nombre</span>`}</div>
+    h+=`<div class="grp"><div class="grphead"><div class="t"><span class="dot" style="--sc:${color(m)}"></span>${nombre(m)||!esCodigo(m)?etiqueta(m):`<span class="code">${esc(m)}</span> <span style="font-weight:400;color:var(--muted)">sin nombre</span>`}</div>
       <div class="acts"><button class="edit" data-nombrar="${esc(m)}">${nombre(m)?"Cambiar nombre":"Poner nombre"}</button><button class="edit" data-addcomp="${esc(m)}">+ Añadir</button></div></div>
       <div class="list">${lst.length?lst.map(c=>compHTML(c,false)).join(""):'<div class="empty">Sin compromisos.</div>'}</div></div>`;
   }
@@ -457,13 +459,14 @@ function abrirComp(id,matDefault){
   const otro=matDefault==="__otro";
   const c=S.comps.find(x=>x.id===id)||{id:null,materia:otro?"":(matDefault||""),titulo:"",tipo:otro?"recordatorio":"prueba",fecha:iso(addDays(new Date(),otro?1:7)),hora:"",nota:"",hecho:false};
   const esMat=c.id?!!c.materia:!otro;
-  const opts=materias().map(m=>`<option value="${esc(m)}"${m===c.materia?" selected":""}>${esc(nombre(m)||m)} (${esc(m)})</option>`).join("");
+  const opts=materias().map(m=>`<option value="${esc(m)}"${m===c.materia?" selected":""}>${nombre(m)?esc(nombre(m))+" ("+esc(m)+")":esc(m)}</option>`).join("");
   $("#sheet").hidden=false;
   $("#sheet").innerHTML=`<div class="sheetbg" id="bg"><form class="sheet" id="f" role="dialog" aria-label="Compromiso">
     <h2>${c.id?"Editar compromiso":"Nuevo compromiso"}</h2>
     <div class="field"><span class="label">¿Es de una materia?</span>
       <div class="seg" role="radiogroup"><label><input type="radio" name="km" value="si"${esMat?" checked":""}> Sí, de una materia</label><label><input type="radio" name="km" value="no"${esMat?"":" checked"}> No, es otro compromiso</label></div></div>
-    <div class="field" id="wm"${esMat?"":" hidden"}><label class="label" for="cm">Materia</label><select id="cm"><option value="">Elige una materia</option>${opts}</select></div>
+    <div class="field" id="wm"${esMat?"":" hidden"}><label class="label" for="cm">Materia</label><select id="cm"><option value="">Elige una materia</option>${opts}<option value="__nueva">+ Otra materia (sin clases en el horario)</option></select>
+      <input id="cmn" placeholder="Nombre de la materia, ej: Práctica 1" hidden style="margin-top:6px"></div>
     <div class="field"><label class="label" for="ct">Qué es</label><input id="ct" required placeholder="${esMat?"Ej: Prueba unidad 3":"Ej: Turno en la panadería, pagar la cuenta"}" value="${esc(c.titulo)}"></div>
     <div class="two"><div class="field"><label class="label" for="cy">Tipo</label><select id="cy">${Object.entries(TIPOS).map(([k,v])=>`<option value="${k}"${k===c.tipo?" selected":""}>${v}</option>`).join("")}</select></div>
       <div class="field"><label class="label" for="cf">Fecha</label><input id="cf" type="date" required value="${c.fecha}"></div></div>
@@ -478,9 +481,13 @@ function abrirComp(id,matDefault){
     $("#wm").hidden=!si; $("#ct").placeholder=si?"Ej: Prueba unidad 3":"Ej: Turno en la panadería, pagar la cuenta";
     if(!c.id)$("#cy").value=si?"prueba":"recordatorio";
   }));
+  $("#cm").addEventListener("change",()=>{const n=$("#cm").value==="__nueva";$("#cmn").hidden=!n;if(n)$("#cmn").focus()});
   wireSheet(c.id?()=>{S.comps=S.comps.filter(x=>x.id!==c.id)}:null,()=>{
     const si=document.querySelector('input[name="km"]:checked').value==="si";
-    const v={id:c.id||uid(),materia:si?$("#cm").value:"",titulo:$("#ct").value.trim(),tipo:$("#cy").value,fecha:$("#cf").value,hora:$("#ch").value,nota:$("#cn").value.trim(),hecho:c.hecho};
+    let mat=si?$("#cm").value:"";
+    if(mat==="__nueva"){mat=$("#cmn").value.trim();if(!mat)return "Escribe el nombre de la materia nueva.";
+      const ya=materias().find(m=>norm(m)===norm(mat)||norm(nombre(m))===norm(mat));if(ya)mat=ya;}
+    const v={id:c.id||uid(),materia:mat,titulo:$("#ct").value.trim(),tipo:$("#cy").value,fecha:$("#cf").value,hora:$("#ch").value,nota:$("#cn").value.trim(),hecho:c.hecho};
     if(si&&!v.materia)return "Elige la materia, o marca que es otro compromiso.";
     if(!v.titulo||!v.fecha)return "Completa qué es y la fecha.";
     const i=S.comps.findIndex(x=>x.id===v.id); if(i>=0)S.comps[i]=v; else S.comps.push(v);
