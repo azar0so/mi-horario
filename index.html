@@ -192,6 +192,7 @@ function semestre(){
   return [
     c("FSL 00004",2,"09:45","11:05","S-02-P05-B · sec. A0K"),
     c("FSL 00004",2,"11:15","12:35","S-05-P04-B · sec. 00X"),
+    {...c("ACT 00106",2,"08:15","09:35","S-10-P04-B · sec. A0K"),sem:"A"},
     c("ACT 00091",3,"08:15","09:35","S-08-P05-B"),
     c("COM 00076",3,"11:15","12:35","S-08-P05-B"),
     {...c("ACT 00092",3,"12:45","14:05","S-05-P05-B · sec. A0K"),sem:"A"},
@@ -206,17 +207,27 @@ function semestre(){
 function lunes(d){const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-((x.getDay()+6)%7));return x}
 const REF_A="2026-10-19";
 function inicial(){
-  return {v:1,ejemplo:false,semestre:SEM,aviso:false,clases:semestre(),comps:[],alterna1:true,refA:REF_A,nombres1:true,
+  return {v:1,ejemplo:false,semestre:SEM,aviso:false,clases:semestre(),comps:[],alterna1:true,refA:REF_A,nombres1:true,practica1:true,
     nombres:{
       "FSL 00004":"Fisiología del Ejercicio",
       "ACT 00091":"Planif. del Entrenamiento Físico para la Salud",
       "COM 00076":"Desarrollo de Habilidades Comunicativas",
       "ACT 00093":"Entrenamiento de la Fuerza",
       "ACT 00092":"Entrenamiento Neuromotor y Flexibilidad",
-      "AMI 00060":"Habilidades de Emprendimiento y Liderazgo"}};
+      "AMI 00060":"Habilidades de Emprendimiento y Liderazgo",
+      "ACT 00106":"Práctica 1"}};
 }
 function valido(st){return st&&Array.isArray(st.clases)&&Array.isArray(st.comps||[])}
-function completar(st){st.comps=st.comps||[];st.nombres=st.nombres||{};st.refA=st.refA||REF_A;st.ejemplo=false;return st}
+function completar(st){st.comps=st.comps||[];st.nombres=st.nombres||{};st.refA=st.refA||REF_A;st.ejemplo=false;
+  if(!st.practica1){
+    // Práctica 1 (ACT 00106): martes 8:15–9:35, semana por medio (toca la semana del 2 de noviembre)
+    st.practica1=true;
+    if(!st.clases.some(c=>c.materia==="ACT 00106"))
+      st.clases.push({id:uid(),materia:"ACT 00106",dia:2,ini:"08:15",fin:"09:35",sala:"S-10-P04-B · sec. A0K",sem:"A"});
+    if(!st.nombres["ACT 00106"])st.nombres["ACT 00106"]="Práctica 1";
+    st.comps.forEach(c=>{if(c.materia&&norm(c.materia).replace(/\s+/g,"")==="practica1")c.materia="ACT 00106"});
+  }
+  return st}
 function semDe(date){const w=Math.round((lunes(date)-parseISO(S.refA||REF_A))/(7*864e5));return ((w%2)+2)%2===0?"A":"B"}
 function enEstaSemana(dia){const l=lunes(new Date());return addDays(l,(dia+6)%7)}
 let tab="hoy";
@@ -232,7 +243,7 @@ function setSync(msg){$("#sync").textContent=msg||"Guardado en este teléfono. F
 function changed(){save();render()}
 
 let S=(()=>{const l=lsGet();return valido(l)?completar(l):inicial()})();
-if(!lsGet())save();
+save();
 try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
 
 /* ---------- colores por materia ---------- */
