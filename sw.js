@@ -1,5 +1,5 @@
 // Guarda la app en el teléfono para que abra sin internet.
-const CACHE = "mi-horario-v4";
+const CACHE = "mi-horario-v5";
 const APP = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-180.png", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", e => {
@@ -16,6 +16,14 @@ self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
+  // Alarma: la app arma el evento y aquí se entrega como archivo de calendario (.ics).
+  if (url.origin === location.origin && url.pathname.endsWith("/alarma.ics")) {
+    const d = (url.searchParams.get("d") || "").replace(/-/g, "+").replace(/_/g, "/");
+    let txt = "";
+    try { txt = new TextDecoder().decode(Uint8Array.from(atob(d), ch => ch.charCodeAt(0))); } catch (_) {}
+    e.respondWith(new Response(txt, { headers: { "Content-Type": "text/calendar; charset=utf-8" } }));
+    return;
+  }
   // La página: primero la red (para recibir actualizaciones), si no hay, la copia guardada.
   if (req.mode === "navigate") {
     e.respondWith(fetch(req).then(r => {
